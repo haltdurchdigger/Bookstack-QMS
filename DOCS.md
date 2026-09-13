@@ -1,3 +1,148 @@
+# BookStack QMS – Documentation / Dokumentation
+
+[English](#english) · [Deutsch](#deutsch)
+
+---
+
+## English
+
+# BookStack QMS – BookStack with an approval workflow (four-eyes principle)
+
+This add-on is based entirely on the official Home Assistant Community Add-on
+[BookStack v4.0.2](https://github.com/hassio-addons/addon-bookstack/tree/v4.0.2)
+(BookStack v25.11.3) and adds a **QMS approval workflow** for the standard
+operating procedures (SOPs) of your pharmacy or organisation:
+
+- Every **newly created or edited page** is automatically set to the status
+  **"In Prüfung"** (under review, yellow banner at the top of the page).
+- Only members of the role **"Freigeber"** (approver) or administrators see the
+  buttons **"Freigeben"** (approve) and **"Zurückweisen"** (reject).
+- **Four-eyes principle:** nobody can approve their own change, not even
+  administrators. This is enforced server-side.
+- A **rejection** requires a reason; it is shown to the author in the red banner.
+- Approved SOPs show a **green banner** with the approver's name and the time of approval.
+- All events (created, changed, approved, rejected, deleted) are stored in an
+  **audit log**: `http://<your-address>:2665/qms/protokoll`
+  (also reachable via the link "Freigabe-Protokoll ansehen" in every banner).
+
+The workflow user interface is in **German**. In addition, `APP_LANG=de` and
+`APP_TIMEZONE=Europe/Berlin` are set as defaults; both can be overridden.
+
+---
+
+### 1. Installation
+
+1. Copy the complete folder `bookstack_qms` into the `/addons` folder of your
+   Home Assistant installation (easiest via the **Samba add-on**, share
+   "addons", or via SSH).
+2. In Home Assistant open **Settings → Add-ons → Add-on Store**.
+3. Click **⋮ → Check for updates** in the top right corner and reload the page.
+4. Under **"Local add-ons"** the add-on **"BookStack QMS (mit Freigabe-Workflow)"**
+   appears → install it. (The image is built locally; this takes a few minutes.)
+
+> **Note:** During the build the add-on pulls the official BookStack image
+> `ghcr.io/hassio-addons/bookstack/...:4.0.2` and only adds the QMS theme on
+> top. The BookStack core is not modified, so your data stays compatible.
+
+### 2. Migrating from the official BookStack add-on
+
+**Important: create a full backup first (Home Assistant full backup)!**
+
+Both add-ons use the same MariaDB database `bookstack`. Your books, pages and
+users are therefore available again automatically after the migration. Three
+things need to be transferred:
+
+#### a) Take over the app key
+
+1. In the **old** add-on set the option `show_appkey: true`, restart it and
+   note the app key from the log (format `base64:...`).
+2. Enter this key in the **new** add-on as the option `appkey` (it is removed
+   from the configuration automatically after the first start).
+
+#### b) Copy uploaded files and images
+
+The images of your SOPs are stored in the data folder of the old add-on. Copy
+them via SSH (e.g. the add-on "Advanced SSH & Web Terminal" with protection
+mode disabled), **after the new add-on has been started once**:
+
+```bash
+cp -a /usr/share/hassio/addons/data/a0d7b954_bookstack/bookstack/. \
+      /usr/share/hassio/addons/data/local_bookstack_qms/bookstack/
+```
+
+Then restart the new add-on.
+
+#### c) Stop the old add-on
+
+Both add-ons use port **2665**. Stop the old add-on (and disable its autostart)
+before starting the new one. Only uninstall the old add-on once everything has
+been verified.
+
+### 3. Setting up the "Freigeber" (approver) role
+
+On the first visit to the web interface the add-on automatically creates:
+
+- the role **"Freigeber"** (under *Settings → Roles* in BookStack),
+- the database tables `qms_page_status` and `qms_audit_log`.
+
+Then, in BookStack under **Settings → Users**, assign the role **"Freigeber"**
+to everyone allowed to approve SOPs (e.g. pharmacy management, QMS officer).
+The role does not need any special permissions; it only marks users for the
+approval function.
+
+### 4. Daily workflow
+
+1. An employee creates or edits an SOP → the status is automatically set to
+   **"In Prüfung"** (yellow).
+2. Another person with the "Freigeber" role opens the page, reviews it and
+   clicks **"Freigeben"** (green) or **"Zurückweisen"** with a reason (red).
+3. After a rejection the author revises the SOP; saving it sets the status back
+   to "In Prüfung" automatically.
+4. If an already approved SOP is edited later, it loses its approval and must
+   be reviewed again.
+5. Existing pages that were last edited before the installation show a grey
+   banner "Kein QMS-Status" (no QMS status) and can be approved in bulk by an
+   approver.
+
+The complete log for internal audits is available at any time at `/qms/protokoll`.
+
+### 5. Configuration
+
+The options are identical to the original add-on (`log_level`, `ssl`,
+`certfile`, `keyfile`, `remote_mysql_*`, `show_appkey`, `appkey`, `envvars`).
+Details: see the [original documentation](https://github.com/hassio-addons/addon-bookstack/blob/v4.0.2/bookstack/DOCS.md).
+
+Additional default environment variables (can be overridden via `envvars`):
+
+| Variable       | Default         | Purpose                        |
+| -------------- | --------------- | ------------------------------ |
+| `APP_THEME`    | `qms-audit`     | Enables the approval workflow  |
+| `APP_LANG`     | `de`            | German default language        |
+| `APP_TIMEZONE` | `Europe/Berlin` | Correct timestamps             |
+
+> `APP_THEME` must not be overridden, otherwise the approval workflow is disabled.
+
+### 6. Known limitations
+
+- As with the original, **Ingress does not work**; access is via port 2665.
+- The banner appears in the normal page view (not in PDF exports).
+- The status "In Prüfung" does **not hide** the page: all staff can still read
+  it, but see clearly that it has not been approved yet.
+- When the original add-on is updated later (e.g. v4.1.x), the version number
+  in `build.yaml` must be adjusted and the theme checked against the new
+  BookStack version.
+
+### 7. Disclaimer
+
+This add-on is a private extension and is not affiliated with the developers of
+BookStack or the Home Assistant Community Add-ons. Check for yourself whether
+the function meets the requirements of your QMS (e.g. the German
+Apothekenbetriebsordnung). License: MIT (as the original).
+
+---
+
+## Deutsch
+
 # BookStack QMS – BookStack mit Freigabe-Workflow (4-Augen-Prinzip)
 
 Dieses Add-on basiert vollständig auf dem offiziellen Home-Assistant-Community-Add-on
